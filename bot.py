@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from telegram import Update, Bot
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, Updater, CallbackContext
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackContext
 import openai
 
 # Загрузка переменных окружения из .env
@@ -10,6 +10,10 @@ load_dotenv()
 # Получение API-ключей из переменных окружения
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+# Проверка наличия ключей
+if not TELEGRAM_TOKEN or not OPENAI_API_KEY:
+    raise ValueError("Необходимо указать TELEGRAM_TOKEN и OPENAI_API_KEY в .env файле.")
 
 # Инициализация OpenAI
 openai.api_key = OPENAI_API_KEY
@@ -48,14 +52,15 @@ T — Tone:
 """
 
 # Функция приветствия
-def start(update, context):
+def start(update: Update, context: CallbackContext):
+    user_first_name = update.effective_user.first_name
     update.message.reply_text(
         f"Здравствуйте, {user_first_name}! Я чат-бот от агентства автоматизации «QazaqBots». "
         f"Наш слоган: «Умные боты для умных решений». Чем могу помочь?"
     )
 
 # Функция обработки сообщений
-def handle_message(update: Update, context: CallbackContext) -> None:
+def handle_message(update: Update, context: CallbackContext):
     user_message = update.message.text
 
     try:
@@ -76,19 +81,16 @@ def handle_message(update: Update, context: CallbackContext) -> None:
 
 # Основная функция для запуска бота
 def main():
+    # Создание приложения Telegram
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-    # Инициализация бота и обработчиков
-    bot = Bot(token=TELEGRAM_TOKEN)
-    updater = Updater(bot=bot, use_context=True)
 
-    dp = updater.dispatcher
+    # Добавление обработчиков
     application.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     # Запуск бота
-    application.run_polling()
     print("Бот запущен...")
-    updater.idle()
+    application.run_polling()
 
 if __name__ == "__main__":
     main()
