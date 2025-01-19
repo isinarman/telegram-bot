@@ -1,11 +1,15 @@
 import os
 from dotenv import load_dotenv
-from telegram import Update, Bot
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackContext
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import openai
 
 # Загрузка переменных окружения из .env
 load_dotenv()
+
+# Настройка порта для Render
+PORT = int(os.getenv('PORT', 8080))
+RENDER_URL = os.getenv('RENDER_URL')  # URL вашего приложения на Render
 
 # Получение API-ключей из переменных окружения
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -51,21 +55,21 @@ T — Tone:
 • Привлекающий внимание профессионализмом и опытом.
 """
 
-# Функция приветствия
-def start(update: Update, context: CallbackContext):
+# Асинхронная функция приветствия
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_first_name = update.effective_user.first_name
-    update.message.reply_text(
+    await update.message.reply_text(
         f"Здравствуйте, {user_first_name}! Я чат-бот от агентства автоматизации «QazaqBots». "
         f"Наш слоган: «Умные боты для умных решений». Чем могу помочь?"
     )
 
-# Функция обработки сообщений
-def handle_message(update: Update, context: CallbackContext):
+# Асинхронная функция обработки сообщений
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
 
     try:
         # Отправка запроса в OpenAI API
-        response = openai.ChatCompletion.create(
+        response = await openai.ChatCompletion.acreate(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": PROMPT},
@@ -73,24 +77,43 @@ def handle_message(update: Update, context: CallbackContext):
             ]
         )
         reply = response['choices'][0]['message']['content']
-        update.message.reply_text(reply)
+        await update.message.reply_text(reply)
 
     except Exception as e:
-        update.message.reply_text("Произошла ошибка при обработке вашего запроса. Попробуйте позже.")
+        await update.message.reply_text("Произошла ошибка при обработке вашего запроса. Попробуйте позже.")
         print(f"Ошибка OpenAI API: {e}")
+
+# Асинхронная функция обработки ошибок
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print(f'Произошла ошибка: {context.error}')
+    if update:
+        await update.message.reply_text("Произошла ошибка при обработке вашего запроса. Попробуйте позже.")
 
 # Основная функция для запуска бота
 def main():
     # Создание приложения Telegram
-    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
 
     # Добавление обработчиков
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    # Добавление обработчика ошибок
+    application.add_error_handler(error_handler)
 
-    # Запуск бота
-    print("Бот запущен...")
-    application.run_polling()
+    # Режим запуска в зависимости от среды
+    if RENDER_URL:  # Если запущено на Render
+        # Запуск в режиме webhook
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            webhook_url=f"{RENDER_URL}/webhook",
+            secret_token="your-secret-path"  # Добавьте это в переменные окружения
+        )
+    else:  # Локальный запуск
+        # Запуск в режиме polling
+        application.run_polling()
 
 if __name__ == "__main__":
+    print("Бот запущен...")
     main()
