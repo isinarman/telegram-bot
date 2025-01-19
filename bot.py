@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from telegram import Update, Bot
-from telegram.ext import CommandHandler, MessageHandler, filters, Updater, CallbackContext
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, Updater, CallbackContext
 import openai
 
 # Загрузка переменных окружения из .env
@@ -48,8 +48,7 @@ T — Tone:
 """
 
 # Функция приветствия
-def start(update: Update, context: CallbackContext) -> None:
-    user_first_name = update.effective_user.first_name
+def start(update, context):
     update.message.reply_text(
         f"Здравствуйте, {user_first_name}! Я чат-бот от агентства автоматизации «QazaqBots». "
         f"Наш слоган: «Умные боты для умных решений». Чем могу помочь?"
@@ -77,16 +76,17 @@ def handle_message(update: Update, context: CallbackContext) -> None:
 
 # Основная функция для запуска бота
 def main():
+    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     # Инициализация бота и обработчиков
     bot = Bot(token=TELEGRAM_TOKEN)
     updater = Updater(bot=bot, use_context=True)
 
     dp = updater.dispatcher
-    dp.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("start", start))
     dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 
     # Запуск бота
-    updater.start_polling()
+    application.run_polling()
     print("Бот запущен...")
     updater.idle()
 
