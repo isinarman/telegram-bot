@@ -10,7 +10,7 @@ load_dotenv()
 
 # Настройка порта для Render
 PORT = int(os.getenv('PORT', 8080))
-RENDER_URL = os.getenv('RENDER_URL')  # URL вашего приложения на Render
+RENDER_URL = os.getenv('https://telegram-bot-ag71.onrender.com')  # URL вашего приложения на Render
 
 # Получение API-ключей из переменных окружения
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
