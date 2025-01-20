@@ -3,14 +3,23 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import openai
-from openai import AsyncOpenAI  # Добавляем асинхронный клиент
+from openai import AsyncOpenAI
+import sys
+import logging
+from aiohttp import web
+
+# Настройка логирования
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
 # Загрузка переменных окружения
 load_dotenv()
 
 # Настройки для Render
 PORT = int(os.getenv('PORT', '8080'))
-RENDER_URL = os.getenv('https://telegram-bot-ag71.onrender.com')
+RENDER_URL = os.getenv('RENDER_URL')
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -21,7 +30,7 @@ if not TELEGRAM_TOKEN or not OPENAI_API_KEY:
 # Инициализация асинхронного клиента OpenAI
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
-# Ваш промпт остается без изменений
+# Промпт остается без изменений
 PROMPT = """
 R — Role:
 Вас зовут IZI, вы женского пола. Вы выступаете как эксперт-консультант от Агентства автоматизации «QazaqBots», одного из лучших агентств в Казахстане. 
@@ -62,8 +71,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message:
+        return
+        
     user_message = update.message.text
-
     try:
         response = await client.chat.completions.create(
             model="gpt-4",
@@ -75,19 +86,32 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply = response.choices[0].message.content
         await update.message.reply_text(reply)
     except Exception as e:
-        print(f"Ошибка OpenAI API: {e}")
+        logging.error(f"Ошибка OpenAI API: {e}")
         await update.message.reply_text("Произошла ошибка при обработке вашего запроса. Попробуйте позже.")
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print(f'Произошла ошибка: {context.error}')
+    logging.error(f'Произошла ошибка: {context.error}')
     if update and update.message:
         await update.message.reply_text("Произошла ошибка при обработке вашего запроса. Попробуйте позже.")
 
-async def webhook(request):
-    return web.Response(text="Webhook установлен")
+async def setup_webhook(app: Application) -> web.Application:
+    webhook_app = web.Application()
+    webhook_path = f"/webhook/{TELEGRAM_TOKEN}"
+
+    async def handle_webhook(request):
+        try:
+            update = Update.de_json(await request.json(), app.bot)
+            await app.process_update(update)
+            return web.Response()
+        except Exception as e:
+            logging.error(f"Webhook error: {e}")
+            return web.Response(status=500)
+
+    webhook_app.router.add_post(webhook_path, handle_webhook)
+    return webhook_app
 
 async def main():
-    # Создание приложения
+    # Инициализация приложения
     application = Application.builder().token(TELEGRAM_TOKEN).build()
 
     # Добавление обработчиков
@@ -95,19 +119,37 @@ async def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_error_handler(error_handler)
 
-    # Настройка webhook
+    # Настройка webhook или polling в зависимости от среды
     if RENDER_URL:
-        await application.bot.set_webhook(url=f"{RENDER_URL}/webhook")
-        await application.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            webhook_url=f"{RENDER_URL}/webhook"
+        logging.info(f"Запуск в режиме webhook на порту {PORT}")
+        webhook_app = await setup_webhook(application)
+        runner = web.AppRunner(webhook_app)
+        await runner.setup()
+        site = web.TCPSite(runner, '0.0.0.0', PORT)
+        
+        await application.bot.set_webhook(
+            url=f"{RENDER_URL}/webhook/{TELEGRAM_TOKEN}",
+            allowed_updates=Update.ALL_TYPES
         )
+        
+        await site.start()
+        
+        # Держим приложение запущенным
+        while True:
+            await asyncio.sleep(3600)
     else:
-        await application.bot.delete_webhook()
+        logging.info("Запуск в режиме polling")
+        await application.initialize()
+        await application.start()
         await application.run_polling()
+        await application.stop()
 
 if __name__ == "__main__":
     import asyncio
-    print("Бот запущен...")
-    asyncio.run(main())
+    
+    try:
+        logging.info("Бот запущен...")
+        asyncio.run(main())
+    except Exception as e:
+        logging.error(f"Критическая ошибка: {e}")
+        sys.exit(1)
