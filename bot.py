@@ -3,16 +3,14 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import openai
-import requests  # Импорт requests для установки Webhook
+from openai import AsyncOpenAI  # Добавляем асинхронный клиент
 
-# Загрузка переменных окружения из .env
+# Загрузка переменных окружения
 load_dotenv()
 
-# Настройка порта для Render
-PORT = int(os.getenv('PORT', 8080))
-RENDER_URL = os.getenv('https://telegram-bot-ag71.onrender.com')  # URL вашего приложения на Render
-
-# Получение API-ключей из переменных окружения
+# Настройки для Render
+PORT = int(os.getenv('PORT', '8080'))
+RENDER_URL = os.getenv('https://telegram-bot-ag71.onrender.com')
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -20,10 +18,10 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not TELEGRAM_TOKEN or not OPENAI_API_KEY:
     raise ValueError("Необходимо указать TELEGRAM_TOKEN и OPENAI_API_KEY в .env файле.")
 
-# Инициализация OpenAI
-openai.api_key = OPENAI_API_KEY
+# Инициализация асинхронного клиента OpenAI
+client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
-# Ваш промпт
+# Ваш промпт остается без изменений
 PROMPT = """
 R — Role:
 Вас зовут IZI, вы женского пола. Вы выступаете как эксперт-консультант от Агентства автоматизации «QazaqBots», одного из лучших агентств в Казахстане. 
@@ -56,7 +54,6 @@ T — Tone:
 • Привлекающий внимание профессионализмом и опытом.
 """
 
-# Асинхронная функция приветствия
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_first_name = update.effective_user.first_name
     await update.message.reply_text(
@@ -64,69 +61,53 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Наш слоган: «Умные боты для умных решений». Чем могу помочь?"
     )
 
-# Асинхронная функция обработки сообщений
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
 
     try:
-        # Отправка запроса в OpenAI API
-        response = await openai.ChatCompletion.acreate(
+        response = await client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": PROMPT},
                 {"role": "user", "content": user_message}
             ]
         )
-        reply = response['choices'][0]['message']['content']
+        reply = response.choices[0].message.content
         await update.message.reply_text(reply)
-
     except Exception as e:
-        await update.message.reply_text("Произошла ошибка при обработке вашего запроса. Попробуйте позже.")
         print(f"Ошибка OpenAI API: {e}")
+        await update.message.reply_text("Произошла ошибка при обработке вашего запроса. Попробуйте позже.")
 
-# Асинхронная функция обработки ошибок
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f'Произошла ошибка: {context.error}')
-    if update:
+    if update and update.message:
         await update.message.reply_text("Произошла ошибка при обработке вашего запроса. Попробуйте позже.")
 
-# Основная функция для запуска бота
-def main():
-    # Создание приложения Telegram
+async def webhook(request):
+    return web.Response(text="Webhook установлен")
+
+async def main():
+    # Создание приложения
     application = Application.builder().token(TELEGRAM_TOKEN).build()
 
     # Добавление обработчиков
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    # Добавление обработчика ошибок
     application.add_error_handler(error_handler)
 
-    # Установка Webhook
+    # Настройка webhook
     if RENDER_URL:
-        webhook_url = f"{RENDER_URL}/webhook"
-        response = requests.post(
-            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook",
-            data={"url": webhook_url}
-        )
-        if response.status_code == 200:
-            print("Webhook установлен успешно!")
-        else:
-            print(f"Ошибка при установке Webhook: {response.json()}")
-
-    # Режим запуска в зависимости от среды
-    if RENDER_URL:  # Если запущено на Render
-        # Запуск в режиме webhook
-        application.run_webhook(
+        await application.bot.set_webhook(url=f"{RENDER_URL}/webhook")
+        await application.run_webhook(
             listen="0.0.0.0",
             port=PORT,
-            webhook_url=f"{RENDER_URL}/webhook",
-            secret_token="your-secret-path"  # Добавьте это в переменные окружения
+            webhook_url=f"{RENDER_URL}/webhook"
         )
-    else:  # Локальный запуск
-        # Запуск в режиме polling
-        application.run_polling()
+    else:
+        await application.bot.delete_webhook()
+        await application.run_polling()
 
 if __name__ == "__main__":
+    import asyncio
     print("Бот запущен...")
-    main()
+    asyncio.run(main())
