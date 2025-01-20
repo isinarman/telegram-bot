@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import openai
+import requests  # Импорт requests для установки Webhook
 
 # Загрузка переменных окружения из .env
 load_dotenv()
@@ -100,6 +101,18 @@ def main():
     
     # Добавление обработчика ошибок
     application.add_error_handler(error_handler)
+
+    # Установка Webhook
+    if RENDER_URL:
+        webhook_url = f"{RENDER_URL}/webhook"
+        response = requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook",
+            data={"url": webhook_url}
+        )
+        if response.status_code == 200:
+            print("Webhook установлен успешно!")
+        else:
+            print(f"Ошибка при установке Webhook: {response.json()}")
 
     # Режим запуска в зависимости от среды
     if RENDER_URL:  # Если запущено на Render
