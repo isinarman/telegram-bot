@@ -7,6 +7,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from aiohttp import web
 import openai
+import telegram
 
 # Инициализация приложения
 app = web.Application()
@@ -65,6 +66,12 @@ T — Tone:
 • С акцентом на заботу о клиенте и его бизнесе.
 • Привлекающий внимание профессионализмом и опытом.
 """
+# Состояния для ConversationHandler
+ASK_NICHE, ASK_NAME, ASK_PHONE = range(3)
+
+# Ваш ID для отправки собранных данных
+ADMIN_CHAT_ID = 352033952
+ADMIN_ID = 352033952  # Ваш Telegram ID
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_first_name = update.effective_user.first_name
@@ -72,8 +79,43 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Здравствуйте, {user_first_name}! Я IZI Искусственный интеллект от агентства автоматизации «QazaqBots». "
             f"Наш слоган: «Умные боты для умных решений». Чем могу помочь?"
     )
+    update.message.reply_text(
+        "Привет, {user_first_name}! В какой нише вы работаете?"
+    )
+    return ASK_NICHE
 
-ADMIN_ID = 352033952  # Ваш Telegram ID
+# Получение ниши
+def ask_niche(update, context):
+    context.user_data['niche'] = update.message.text  # Сохраняем нишу
+    update.message.reply_text("Спасибо! Как вас зовут?")
+    return ASK_NAME
+
+# Получение имени
+def ask_name(update, context):
+    context.user_data['name'] = update.message.text  # Сохраняем имя
+    update.message.reply_text("Отлично! Теперь укажите ваш номер телефона.")
+    return ASK_PHONE
+
+# Получение телефона и отправка данных
+def ask_phone(update, context):
+    context.user_data['phone'] = update.message.text  # Сохраняем телефон
+    
+    # Отправка собранных данных админу
+    niche = context.user_data['niche']
+    name = context.user_data['name']
+    phone = context.user_data['phone']
+    message = f"Новая заявка!\n\nНиша: {niche}\nИмя: {name}\nТелефон: {phone}"
+    
+    # Отправляем сообщение админу
+    context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=message)
+    
+    update.message.reply_text("Спасибо! Мы скоро с вами свяжемся.")
+    return ConversationHandler.END
+
+# Обработка отмены
+def cancel(update, context):
+    update.message.reply_text("Вы отменили заполнение данных.")
+    return ConversationHandler.END
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
@@ -82,6 +124,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     user_id = update.effective_user.id
     user_name = update.effective_user.full_name
+    
     # Пересылка сообщения администратору
     await context.bot.send_message(
         chat_id=ADMIN_ID,
@@ -142,11 +185,41 @@ async def main():
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     # Инициализация приложения перед запуском webhook
     await application.initialize()
+    
+    # Создаем ConversationHandler
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler("start", start)],
+        states={
+            ASK_NICHE: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_niche)],
+            ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name)],
+            ASK_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_phone)],
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+    )
+
+    # Добавляем обработчик
+    application.add_handler(conv_handler)
 
     # Добавление обработчиков
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_error_handler(error_handler)
+
+    # Функция для обработки голосовых сообщений
+async def handle_voice(update: Update, context: CallbackContext):
+    voice = update.message.voice.get_file()
+    file_path = voice.download("voice_message.ogg")  # Сохранение голосового сообщения
+    try:
+        # Используем OpenAI для распознавания речи (или другую библиотеку)
+        with open(file_path, "rb") as audio_file:
+            transcript = openai.Audio.transcribe("whisper-1", audio_file)  # Замените "whisper-1" на используемую модель
+        update.message.reply_text(f"Вы сказали: {transcript['text']}")
+    except Exception as e:
+        update.message.reply_text("Не удалось распознать голос. Попробуйте еще раз.")
+        print(f"Ошибка: {e}")
+
+    # Добавляем обработчик голосовых сообщений
+    dispatcher.add_handler(MessageHandler(Filters.voice, handle_voice))
 
     # Настройка webhook или polling в зависимости от среды
     if RENDER_URL:
