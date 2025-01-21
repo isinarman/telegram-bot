@@ -1,11 +1,12 @@
 import os
+import sys
+import logging
+import asyncio
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-import openai
-import sys
-import logging
 from aiohttp import web
+import openai
 
 # Инициализация приложения
 app = web.Application()
@@ -80,7 +81,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Используем актуальный метод OpenAI API для генерации ответа
         response = openai.ChatCompletion.create(
-            model="gpt-4",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": PROMPT},
                 {"role": "user", "content": user_message}
@@ -97,23 +98,22 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update and update.message:
         await update.message.reply_text("Произошла ошибка при обработке вашего запроса. Попробуйте позже.")
 
-async def setup_webhook(app: Application) -> web.Application:
+async def setup_webhook(application: Application) -> web.Application:
+    # Получаем объект web.Application из существующего приложения
     webhook_app = web.Application()
     webhook_path = f"/webhook/{TELEGRAM_TOKEN}"
 
     async def handle_webhook(request):
         try:
-            update = Update.de_json(await request.json(), app.bot)
-            await app.process_update(update)
+            # Получаем обновление
+            update = Update.de_json(await request.json(), application.bot)
+            await application.process_update(update)
             return web.Response()
         except Exception as e:
             logging.error(f"Webhook error: {e}")
             return web.Response(status=500)
 
-     # Добавляем обработчик для корневого пути `/`
-async def handle_root(request):
-    return web.Response(text="Telegram bot is running!")
-        
+    # Добавляем обработчик для вебхуков
     webhook_app.router.add_post(webhook_path, handle_webhook)
     webhook_app.router.add_get("/", handle_root)
     return webhook_app
