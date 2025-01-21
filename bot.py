@@ -111,19 +111,19 @@ async def setup_webhook(app: Application) -> web.Application:
             return web.Response(status=500)
 
      # Добавляем обработчик для корневого пути `/`
-    async def handle_root(request):
-        return web.Response(text="Telegram bot is running!")
+async def handle_root(request):
+    return web.Response(text="Telegram bot is running!")
         
     webhook_app.router.add_post(webhook_path, handle_webhook)
     webhook_app.router.add_get("/", handle_root)
     return webhook_app
 
-# Инициализация приложения перед запуском
-app.initialize()  # Это может быть необходимая строка для вашего случая
+    # Инициализация приложения перед запуском
+    app.initialize()  # Это может быть необходимая строка для вашего случая
 
 async def main():
     # Инициализация приложения
-        application = Application.builder().token(TELEGRAM_TOKEN).build()
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
 
     # Добавление обработчиков
     application.add_handler(CommandHandler("start", start))
