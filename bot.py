@@ -107,7 +107,12 @@ async def setup_webhook(app: Application) -> web.Application:
             logging.error(f"Webhook error: {e}")
             return web.Response(status=500)
 
+     # Добавляем обработчик для корневого пути `/`
+    async def handle_root(request):
+        return web.Response(text="Telegram bot is running!")
+        
     webhook_app.router.add_post(webhook_path, handle_webhook)
+    webhook_app.router.add_get("/", handle_root)
     return webhook_app
 
 async def main():
