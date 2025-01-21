@@ -98,6 +98,10 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update and update.message:
         await update.message.reply_text("Произошла ошибка при обработке вашего запроса. Попробуйте позже.")
 
+# Обработчик для корневого URL
+async def handle_root(request):
+    return web.Response(text="Telegram bot is running!")
+
 async def setup_webhook(application: Application) -> web.Application:
     # Получаем объект web.Application из существующего приложения
     webhook_app = web.Application()
