@@ -7,6 +7,9 @@ import sys
 import logging
 from aiohttp import web
 
+# Инициализация приложения
+app = web.Application()
+
 # Настройка логирования
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -115,9 +118,12 @@ async def setup_webhook(app: Application) -> web.Application:
     webhook_app.router.add_get("/", handle_root)
     return webhook_app
 
+# Инициализация приложения перед запуском
+app.initialize()  # Это может быть необходимая строка для вашего случая
+
 async def main():
     # Инициализация приложения
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
+        application = Application.builder().token(TELEGRAM_TOKEN).build()
 
     # Добавление обработчиков
     application.add_handler(CommandHandler("start", start))
