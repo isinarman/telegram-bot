@@ -3,10 +3,9 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import openai
-from aiohttp import web
-import logging
-import asyncio
 import sys
+import logging
+from aiohttp import web
 
 # Настройка логирования
 logging.basicConfig(
@@ -27,18 +26,18 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not TELEGRAM_TOKEN or not OPENAI_API_KEY:
     raise ValueError("Необходимо указать TELEGRAM_TOKEN и OPENAI_API_KEY в .env файле.")
 
-# Инициализация клиента OpenAI
+# Инициализация OpenAI API
 openai.api_key = OPENAI_API_KEY
 
-# Промпт для OpenAI
+# Промпт остается без изменений
 PROMPT = """
 R — Role:
 Вас зовут IZI, вы женского пола. Вы выступаете как эксперт-консультант от Агентства автоматизации «QazaqBots», одного из лучших агентств в Казахстане. 
-Вы представляете команду, собравшую ведущих специалистов по разработке и интеграции ИИ чат-ботов. Агентство помогает бизнесу налаживать поток целевых заявок и эффективно обрабатывать их 24/7 с помощью интеллектуальных решений. Ваш опыт охватывает полный цикл автоматизации, от идеи до внедрения, и вы помогаете клиентам превращать их бизнес в стабильный источник прибыли.
+Вы представляете команду, собравшую ведущих специалистов по разработке и интеграции Искусственного интеллекта в мессенджеры. Агентство помогает бизнесу налаживать поток целевых заявок и эффективно обрабатывать их 24/7 с помощью интеллектуальных решений. Ваш опыт охватывает полный цикл автоматизации, от идеи до внедрения, и вы помогаете клиентам превращать их бизнес в стабильный источник прибыли.
 
 A — Action:
 Ваша задача:
-1. Отвечать на вопросы о разработке, интеграции и возможностях ИИ чат-ботов, подчеркивая преимущества работы с «QazaqBots».
+1. Отвечать на вопросы о разработке, интеграции и возможностях Искусственного интеллекта, подчеркивая преимущества работы с «QazaqBots».
 2. Рассказывать о сильных сторонах агентства, таких как:
     • Создание потока целевых заявок.
     • 24/7 обработка клиентов в мессенджерах.
@@ -63,21 +62,20 @@ T — Tone:
 • Привлекающий внимание профессионализмом и опытом.
 """
 
-# Обработчик команды /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_first_name = update.effective_user.first_name
     await update.message.reply_text(
-        f"Здравствуйте, {user_first_name}! Я чат-бот от агентства автоматизации «QazaqBots». "
-        f"Наш слоган: «Умные боты для умных решений». Чем могу помочь?"
+        f"Здравствуйте, {user_first_name}! Я IZI Искусственный интеллект от агентства автоматизации «QazaqBots». "
+            f"Наш слоган: «Умные боты для умных решений». Чем могу помочь?"
     )
 
-# Обработчик сообщений
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
 
     user_message = update.message.text
     try:
+        # Используем актуальный метод OpenAI API для генерации ответа
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
@@ -85,19 +83,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 {"role": "user", "content": user_message}
             ]
         )
-        reply = response.choices[0].message.content
+        reply = response['choices'][0]['message']['content']
         await update.message.reply_text(reply)
     except Exception as e:
         logging.error(f"Ошибка OpenAI API: {e}")
         await update.message.reply_text("Произошла ошибка при обработке вашего запроса. Попробуйте позже.")
 
-# Обработчик ошибок
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logging.error(f'Произошла ошибка: {context.error}')
     if update and update.message:
         await update.message.reply_text("Произошла ошибка при обработке вашего запроса. Попробуйте позже.")
 
-# Установка вебхука
 async def setup_webhook(app: Application) -> web.Application:
     webhook_app = web.Application()
     webhook_path = f"/webhook/{TELEGRAM_TOKEN}"
@@ -114,9 +110,8 @@ async def setup_webhook(app: Application) -> web.Application:
     webhook_app.router.add_post(webhook_path, handle_webhook)
     return webhook_app
 
-# Основная функция
 async def main():
-    # Создание приложения Telegram
+    # Инициализация приложения
     application = Application.builder().token(TELEGRAM_TOKEN).build()
 
     # Добавление обработчиков
@@ -124,20 +119,19 @@ async def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_error_handler(error_handler)
 
-    # Настройка webhook
+    # Настройка webhook или polling в зависимости от среды
     if RENDER_URL:
         logging.info(f"Запуск в режиме webhook на порту {PORT}")
         webhook_app = await setup_webhook(application)
         runner = web.AppRunner(webhook_app)
         await runner.setup()
         site = web.TCPSite(runner, '0.0.0.0', PORT)
-        
-        await application.initialize()
+
         await application.bot.set_webhook(
             url=f"{RENDER_URL}/webhook/{TELEGRAM_TOKEN}",
             allowed_updates=Update.ALL_TYPES
         )
-        await application.start()
+
         await site.start()
 
         # Держим приложение запущенным
@@ -151,6 +145,8 @@ async def main():
         await application.stop()
 
 if __name__ == "__main__":
+    import asyncio
+
     try:
         logging.info("Бот запущен...")
         asyncio.run(main())
