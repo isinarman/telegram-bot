@@ -179,12 +179,22 @@ async def setup_webhook(application: Application) -> web.Application:
     webhook_app.router.add_post(webhook_path, handle_webhook)
     webhook_app.router.add_get("/", handle_root)
     return webhook_app
+    
+    # Функция для обработки webhook
+async def webhook_handler(request):
+    data = await request.json()
+    # Передать данные в бота
+    await application.update_queue.put(data)
+    return web.Response()
 
 async def main():
     # Инициализация приложения
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     # Инициализация приложения перед запуском webhook
     await application.initialize()
+    app = web.Application()
+    app.router.add_post(f"/webhook/{TELEGRAM_TOKEN}", webhook_handler)
+    web.run_app(app, port=PORT)
     
     # Создаем ConversationHandler
     conv_handler = ConversationHandler(
@@ -248,6 +258,11 @@ async def handle_voice(update: Update, context: CallbackContext):
 
 if __name__ == "__main__":
     import asyncio
+    TOKEN = "TELEGRAM_TOKEN"
+    PORT = 8080  # Укажите порт, на котором будет работать бот
+    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
+    application.bot.set_webhook(url=f"https://telegram-bot-ag71.onrender.com/webhook/{TELEGRAM_TOKEN}")
 
     try:
         logging.info("Бот запущен...")
