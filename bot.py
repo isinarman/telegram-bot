@@ -118,9 +118,6 @@ async def handle_root(request):
     webhook_app.router.add_get("/", handle_root)
     return webhook_app
 
-    # Инициализация приложения перед запуском
-    app.initialize()  # Это может быть необходимая строка для вашего случая
-
 async def main():
     # Инициализация приложения
     application = Application.builder().token(TELEGRAM_TOKEN).build()
