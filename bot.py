@@ -4,7 +4,7 @@ import logging
 import asyncio
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackContext, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackContext, filters, ContextTypes, ConversationHandler
 from aiohttp import web
 import openai
 import telegram
