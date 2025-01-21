@@ -7,6 +7,7 @@ from openai import AsyncOpenAI
 import sys
 import logging
 from aiohttp import web
+from aiogram import Bot, Dispatcher, types
 
 # Настройка логирования
 logging.basicConfig(
@@ -19,7 +20,7 @@ load_dotenv()
 
 # Настройки для Render
 PORT = int(os.getenv('PORT', '8080'))
-RENDER_URL = os.getenv('RENDER_URL')
+RENDER_URL = "https://telegram-bot-ag71.onrender.com"
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
