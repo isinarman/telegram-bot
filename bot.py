@@ -125,9 +125,8 @@ async def setup_webhook(application: Application) -> web.Application:
 async def main():
     # Инициализация приложения
     application = Application.builder().token(TELEGRAM_TOKEN).build()
-
     # Инициализация приложения перед запуском webhook
-await application.initialize()
+    await application.initialize()
 
     # Добавление обработчиков
     application.add_handler(CommandHandler("start", start))
