@@ -7,7 +7,6 @@ from openai import AsyncOpenAI
 import sys
 import logging
 from aiohttp import web
-from aiogram import Bot, Dispatcher, types
 
 # Настройка логирования
 logging.basicConfig(
