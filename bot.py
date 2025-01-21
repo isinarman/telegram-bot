@@ -73,11 +73,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Наш слоган: «Умные боты для умных решений». Чем могу помочь?"
     )
 
+ADMIN_ID = 352033952  # Ваш Telegram ID
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
 
     user_message = update.message.text
+    user_id = update.effective_user.id
+    user_name = update.effective_user.full_name
+    # Пересылка сообщения администратору
+    await context.bot.send_message(
+        chat_id=ADMIN_ID,
+        text=f"Сообщение от {user_name} ({user_id}): {user_message}"
+    )
     try:
         # Используем актуальный метод OpenAI API для генерации ответа
         response = openai.ChatCompletion.create(
@@ -88,6 +97,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 )
         reply = response['choices'][0]['message']['content']
+        
+        # Логирование ответа бота
+        await context.bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f"Ответ бота пользователю {user_name} ({user_id}): {reply}"
+        )
         await update.message.reply_text(reply)
     except Exception as e:
         logging.error(f"Ошибка OpenAI API: {e}")
