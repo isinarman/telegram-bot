@@ -80,14 +80,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     try:
         # Используем актуальный метод OpenAI API для генерации ответа
-        response = openai.Chat.create(
+        response = openai.ChatCompletion.create(
     model="gpt-4",
     messages=[
         {"role": "system", "content": PROMPT},
         {"role": "user", "content": user_message}
     ]
 )
-        reply = response['choices'][0]['message']['content']
+reply = response['choices'][0]['message']['content']
         await update.message.reply_text(reply)
     except Exception as e:
         logging.error(f"Ошибка OpenAI API: {e}")
