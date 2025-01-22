@@ -59,6 +59,7 @@ T — Tone:
 • С акцентом на заботу о клиенте и его бизнесе.
 • Привлекающий внимание профессионализмом и опытом.
 """
+
 # Состояния для ConversationHandler
 ASK_NICHE, ASK_NAME, ASK_PHONE = range(3)
 
@@ -125,21 +126,26 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logging.error(f"Ошибка OpenAI API: {e}")
         await update.message.reply_text("Произошла ошибка при обработке вашего запроса. Попробуйте позже.")
 
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logging.error(f'Произошла ошибка: {context.error}')
-    if update and update.message:
-        await update.message.reply_text("Произошла ошибка при обработке вашего запроса. Попробуйте позже.")
-
 async def handle_voice(update: Update, context: CallbackContext):
-    voice = update.message.voice.get_file()
-    file_path = await voice.download("voice_message.ogg")
+    voice = await update.message.voice.get_file()
+    file_path = "voice_message.ogg"
+    await voice.download_to_drive(file_path)
+    
     try:
         with open(file_path, "rb") as audio_file:
-            transcript = openai.Audio.transcribe("whisper-1", audio_file)  # Используем модель Whisper для транскрипции
+            transcript = openai.Audio.transcribe("whisper-1", audio_file)
         await update.message.reply_text(f"Вы сказали: {transcript['text']}")
     except Exception as e:
         await update.message.reply_text("Не удалось распознать голос. Попробуйте еще раз.")
         logging.error(f"Ошибка при распознавании голоса: {e}")
+    finally:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logging.error(f'Произошла ошибка: {context.error}')
+    if update and update.message:
+        await update.message.reply_text("Произошла ошибка при обработке вашего запроса. Попробуйте позже.")
 
 async def handle_root(request):
     return web.Response(text="Telegram bot is running!")
@@ -158,6 +164,12 @@ async def setup_webhook(application: Application) -> web.Application:
 
 async def main():
     application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
+    # Настройка обработчиков
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    application.add_handler(MessageHandler(filters.VOICE, handle_voice))
+    application.add_error_handler(error_handler)
 
     # Настройка webhook или polling
     if RENDER_URL:
