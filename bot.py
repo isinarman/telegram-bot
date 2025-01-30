@@ -23,7 +23,7 @@ logging.basicConfig(
 
 load_dotenv()
 
-PORT = int(os.getenv('PORT', 8080))
+PORT = int(os.getenv('PORT', 10000))
 RENDER_URL = os.getenv("RENDER_URL", "https://telegram-bot-ag71.onrender.com")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
