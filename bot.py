@@ -170,8 +170,10 @@ def setup_handlers(app: Application):
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_error_handler(error_handler)
 
-async def web_app(application: Application):
+async def web_app(application: Application) -> web.Application:
     app = web.Application()
+    
+    # Маршрут для GET-запросов (проверка работоспособности)
     app.router.add_get("/", lambda r: web.Response(text="Bot is running"))
     
 async def handle_webhook(request):
