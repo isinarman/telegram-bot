@@ -101,33 +101,59 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Проверяем, есть ли сообщение и текст
     if not update.message or not update.message.text:
+        logging.warning("Received update without message or text")
         return
-    
+
     user = update.effective_user
-    await context.bot.send_message(
-        ADMIN_CHAT_ID,
-        f"Сообщение от {user.full_name} ({user.id}): {update.message.text}"
-    )
+    user_message = update.message.text
+
+    # Логируем входящее сообщение
+    logging.info(f"Received message from {user.full_name} ({user.id}): {user_message}")
 
     try:
+        # Пересылаем сообщение админу
+        await context.bot.send_message(
+            chat_id=ADMIN_CHAT_ID,
+            text=f"Сообщение от {user.full_name} ({user.id}): {user_message}"
+        )
+
+        # Генерируем ответ с помощью OpenAI
         response = await openai.ChatCompletion.acreate(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": PROMPT},
-                {"role": "user", "content": update.message.text}
-            ]
+                {"role": "user", "content": user_message}
+            ],
+            temperature=0.7,  # Параметр для управления "креативностью" ответа
+            max_tokens=500    # Ограничение длины ответа
         )
+
+        # Извлекаем ответ от GPT
         reply = response.choices[0].message.content
-        
+
+        # Логируем ответ бота
+        logging.info(f"Generated reply for {user.full_name}: {reply}")
+
+        # Пересылаем ответ админу
         await context.bot.send_message(
-            ADMIN_CHAT_ID,
-            f"Ответ бота для {user.full_name}: {reply}"
+            chat_id=ADMIN_CHAT_ID,
+            text=f"Ответ бота для {user.full_name}: {reply}"
         )
+
+        # Отправляем ответ пользователю
         await update.message.reply_text(reply)
+
+    except openai.error.OpenAIError as e:
+        # Обработка ошибок OpenAI
+        logging.error(f"OpenAI API error: {e}", exc_info=True)
+        await update.message.reply_text("Произошла ошибка при обработке вашего запроса. Попробуйте позже.")
+
     except Exception as e:
-        logging.error(f"OpenAI error: {e}")
-        await update.message.reply_text("Ошибка обработки запроса")
+        # Обработка других ошибок
+        logging.error(f"Unexpected error: {e}", exc_info=True)
+        await update.message.reply_text("Произошла непредвиденная ошибка. Пожалуйста, попробуйте позже.")
 
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     voice_file = await update.message.voice.get_file()
