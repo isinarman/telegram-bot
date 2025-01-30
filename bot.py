@@ -19,7 +19,7 @@ import openai
 # Инициализация логирования
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging.DEBUG  # Уровень DEBUG для более подробного логирования
 )
 
 load_dotenv()
@@ -57,9 +57,6 @@ F — Format:
 • Выстраивание доверия через примеры успешной работы и персонализированный подход.
 • Завершение диалога приглашением на бесплатную консультацию с предложением оставить номер телефона.
 
-Пример ответа:
-«Спасибо за ваш вопрос! Агентство автоматизации  «QazaqBots» специализируется на разработке умных чат-ботов, которые помогают бизнесу в Казахстане превращать трафик в стабильный поток заявок и обрабатывать их в мессенджерах 24/7. Мы собрали лучших специалистов и готовы помочь вам автоматизировать бизнес от А до Я. Напишите ваш номер телефона, чтобы мы смогли обсудить ваши задачи и предложить оптимальное решение. Наш слоган: «Умные боты для умных решений».»
-
 T — Tone:
 Тон общения:
 • Дружелюбный, уверенный, экспертный.
@@ -77,16 +74,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ASK_NICHE
 
 async def ask_niche(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logging.info(f"Received message asking for niche: {update.message.text}")
     context.user_data['niche'] = update.message.text
     await update.message.reply_text("Спасибо! Как вас зовут?")
     return ASK_NAME
 
 async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logging.info(f"Received name: {update.message.text}")
     context.user_data['name'] = update.message.text
     await update.message.reply_text("Отлично! Укажите ваш номер телефона:")
     return ASK_PHONE
 
 async def ask_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logging.info(f"Received phone: {update.message.text}")
     context.user_data['phone'] = update.message.text
     data = context.user_data
     await context.bot.send_message(
@@ -97,6 +97,7 @@ async def ask_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logging.info("Received /cancel command")
     await update.message.reply_text("Диалог прерван.")
     return ConversationHandler.END
 
@@ -123,10 +124,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logging.info("Sending request to OpenAI API...")
         response = await openai.ChatCompletion.acreate(
             model="gpt-4",
-            messages=[
-                {"role": "system", "content": PROMPT},
-                {"role": "user", "content": user_message}
-            ],
+            messages=[{"role": "system", "content": PROMPT},
+                      {"role": "user", "content": user_message}],
             temperature=0.7,
             max_tokens=500
         )
@@ -156,25 +155,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logging.error(f"Unexpected error: {e}", exc_info=True)
         await update.message.reply_text("Произошла непредвиденная ошибка. Пожалуйста, попробуйте позже.")
 
-async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    voice_file = await update.message.voice.get_file()
-    filename = f"voice_{update.update_id}.oga"
-    
-    try:
-        await voice_file.download_to_drive(filename)
-        with open(filename, "rb") as audio_file:
-            transcript = await openai.audio.transcriptions.create(
-                file=audio_file,
-                model="whisper-1"
-            )
-        await update.message.reply_text(f"Распознано: {transcript.text}")
-    except Exception as e:
-        await update.message.reply_text("Ошибка распознавания голоса")
-        logging.error(f"Voice error: {e}")
-    finally:
-        if os.path.exists(filename):
-            os.remove(filename)
-
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logging.error(f"Error: {context.error}", exc_info=True)
     if update.effective_message:
@@ -194,16 +174,15 @@ def setup_handlers(app: Application):
     
     app.add_handler(conv_handler)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_error_handler(error_handler)
 
 async def web_app(application: Application) -> web.Application:
     app = web.Application()
-    
+
     # Маршрут для GET-запросов (проверка работоспособности)
     app.router.add_get("/", lambda r: web.Response(text="Bot is running"))
     
-  # Маршрут для POST-запросов (вебхук Telegram)
+    # Маршрут для POST-запросов (вебхук Telegram)
     async def handle_webhook(request):
         try:
             logging.info("Received webhook request")
@@ -220,7 +199,6 @@ async def web_app(application: Application) -> web.Application:
     
     app.router.add_post(f"/webhook/{TELEGRAM_TOKEN}", handle_webhook)
     
-    # Возвращаем объект app
     return app
 
 async def main():
