@@ -4,27 +4,33 @@ import logging
 import asyncio
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, CallbackContext, filters, ContextTypes, ConversationHandler
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    ConversationHandler,
+    filters,
+    ContextTypes
+)
 from aiohttp import web
 import openai
 
 # Инициализация логирования
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
-# Загрузка переменных окружения
 load_dotenv()
 
-# Настройки для Render
-PORT = int(os.getenv('PORT', '8080'))
-RENDER_URL = "https://telegram-bot-ag71.onrender.com"
+PORT = int(os.getenv('PORT', 8080))
+RENDER_URL = os.getenv("RENDER_URL", "https://telegram-bot-ag71.onrender.com")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Проверка наличия ключей
 if not TELEGRAM_TOKEN or not OPENAI_API_KEY:
-    raise ValueError("Необходимо указать TELEGRAM_TOKEN и OPENAI_API_KEY в .env файле.")
+    raise ValueError("Отсутствуют обязательные переменные окружения")
 
-# Инициализация OpenAI API
 openai.api_key = OPENAI_API_KEY
 
 # Промпт для GPT-4
@@ -35,7 +41,7 @@ R — Role:
 
 A — Action:
 Ваша задача:
-1. Отвечать на вопросы о разработке, интеграции и возможностях Искусственного интеллекта, подчеркивая преимущества работы с «QazaqBots».
+1. Отвечать на вопросы о разработке, интеграции и возможностях Искусственного интеллекта, подчеркивая преимущества работы с Агентством автоматизации «QazaqBots».
 2. Рассказывать о сильных сторонах агентства, таких как:
     • Создание потока целевых заявок.
     • 24/7 обработка клиентов в мессенджерах.
@@ -60,137 +66,137 @@ T — Tone:
 • Привлекающий внимание профессионализмом и опытом.
 """
 
-# Состояния для ConversationHandler
+# Состояния диалога
 ASK_NICHE, ASK_NAME, ASK_PHONE = range(3)
-
-# Ваш ID для отправки собранных данных
 ADMIN_CHAT_ID = 352033952
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_first_name = update.effective_user.first_name
-    await update.message.reply_text(f"Здравствуйте, {user_first_name}! Я IZI Искусственный интеллект от агентства автоматизации «QazaqBots». Чем могу помочь?")
+    user = update.effective_user
+    await update.message.reply_text(
+        f"Здравствуйте, {user.first_name}! Я IZI от «QazaqBots». Чем могу помочь?"
+    )
     return ASK_NICHE
 
-async def ask_niche(update, context):
+async def ask_niche(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['niche'] = update.message.text
     await update.message.reply_text("Спасибо! Как вас зовут?")
     return ASK_NAME
 
-async def ask_name(update, context):
+async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['name'] = update.message.text
-    await update.message.reply_text("Отлично! Теперь укажите ваш номер телефона.")
+    await update.message.reply_text("Отлично! Укажите ваш номер телефона:")
     return ASK_PHONE
 
-async def ask_phone(update, context):
+async def ask_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['phone'] = update.message.text
-    # Отправка собранных данных админу
-    niche = context.user_data['niche']
-    name = context.user_data['name']
-    phone = context.user_data['phone']
-    message = f"Новая заявка!\nНиша: {niche}\nИмя: {name}\nТелефон: {phone}"
-    
-    await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=message)
-    await update.message.reply_text("Спасибо! Мы скоро с вами свяжемся.")
+    data = context.user_data
+    await context.bot.send_message(
+        ADMIN_CHAT_ID,
+        f"Новая заявка!\nНиша: {data['niche']}\nИмя: {data['name']}\nТелефон: {data['phone']}"
+    )
+    await update.message.reply_text("Спасибо! Мы скоро свяжемся с вами.")
     return ConversationHandler.END
 
-async def cancel(update, context):
-    await update.message.reply_text("Вы отменили заполнение данных.")
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Диалог прерван.")
     return ConversationHandler.END
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message:
+    if not update.message or not update.message.text:
         return
-
-    user_message = update.message.text
-    user_id = update.effective_user.id
-    user_name = update.effective_user.full_name
     
-    # Пересылка сообщения админу
+    user = update.effective_user
     await context.bot.send_message(
-        chat_id=ADMIN_CHAT_ID,
-        text=f"Сообщение от {user_name} ({user_id}): {user_message}"
+        ADMIN_CHAT_ID,
+        f"Сообщение от {user.full_name} ({user.id}): {update.message.text}"
     )
 
     try:
-        response = openai.ChatCompletion.create(
+        response = await openai.ChatCompletion.acreate(
             model="gpt-4",
-            messages=[{"role": "system", "content": PROMPT}, {"role": "user", "content": user_message}]
+            messages=[
+                {"role": "system", "content": PROMPT},
+                {"role": "user", "content": update.message.text}
+            ]
         )
-        reply = response['choices'][0]['message']['content']
+        reply = response.choices[0].message.content
+        
         await context.bot.send_message(
-            chat_id=ADMIN_CHAT_ID,
-            text=f"Ответ бота пользователю {user_name} ({user_id}): {reply}"
+            ADMIN_CHAT_ID,
+            f"Ответ бота для {user.full_name}: {reply}"
         )
         await update.message.reply_text(reply)
     except Exception as e:
-        logging.error(f"Ошибка OpenAI API: {e}")
-        await update.message.reply_text("Произошла ошибка при обработке вашего запроса. Попробуйте позже.")
+        logging.error(f"OpenAI error: {e}")
+        await update.message.reply_text("Ошибка обработки запроса")
 
-async def handle_voice(update: Update, context: CallbackContext):
-    voice = await update.message.voice.get_file()
-    file_path = "voice_message.ogg"
-    await voice.download_to_drive(file_path)
+async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    voice_file = await update.message.voice.get_file()
+    filename = f"voice_{update.update_id}.oga"
     
     try:
-        with open(file_path, "rb") as audio_file:
-            transcript = openai.Audio.transcribe("whisper-1", audio_file)
-        await update.message.reply_text(f"Вы сказали: {transcript['text']}")
+        await voice_file.download_to_drive(filename)
+        with open(filename, "rb") as audio_file:
+            transcript = await openai.audio.transcriptions.create(
+                file=audio_file,
+                model="whisper-1"
+            )
+        await update.message.reply_text(f"Распознано: {transcript.text}")
     except Exception as e:
-        await update.message.reply_text("Не удалось распознать голос. Попробуйте еще раз.")
-        logging.error(f"Ошибка при распознавании голоса: {e}")
+        await update.message.reply_text("Ошибка распознавания голоса")
+        logging.error(f"Voice error: {e}")
     finally:
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        if os.path.exists(filename):
+            os.remove(filename)
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logging.error(f'Произошла ошибка: {context.error}')
-    if update and update.message:
-        await update.message.reply_text("Произошла ошибка при обработке вашего запроса. Попробуйте позже.")
+    logging.error(f"Error: {context.error}", exc_info=True)
+    if update.effective_message:
+        await update.effective_message.reply_text("Произошла ошибка")
 
-async def handle_root(request):
-    return web.Response(text="Telegram bot is running!")
+def setup_handlers(app: Application):
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', start)],
+        states={
+            ASK_NICHE: [MessageHandler(filters.TEXT, ask_niche)],
+            ASK_NAME: [MessageHandler(filters.TEXT, ask_name)],
+            ASK_PHONE: [MessageHandler(filters.TEXT, ask_phone)]
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],
+        allow_reentry=True
+    )
+    
+    app.add_handler(conv_handler)
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.VOICE, handle_voice))
+    app.add_error_handler(error_handler)
 
-async def setup_webhook(application: Application) -> web.Application:
-    webhook_app = web.Application()
-
-    async def handle_webhook(request):
-        update = Update.de_json(await request.json(), application.bot)
-        await application.process_update(update)
-        return web.Response()
-
-    webhook_app.router.add_post(f"/webhook/{TELEGRAM_TOKEN}", handle_webhook)
-    webhook_app.router.add_get("/", handle_root)
-    return webhook_app
+async def web_app():
+    app = web.Application()
+    app.router.add_get("/", lambda r: web.Response(text="Bot is running"))
+    return app
 
 async def main():
-    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
+    setup_handlers(app)
 
-    # Настройка обработчиков
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    application.add_handler(MessageHandler(filters.VOICE, handle_voice))
-    application.add_error_handler(error_handler)
-
-    # Настройка webhook или polling
-    if RENDER_URL:
-        logging.info(f"Запуск в режиме webhook на порту {PORT}")
-        webhook_app = await setup_webhook(application)
-        runner = web.AppRunner(webhook_app)
+    if RENDER_URL.strip():
+        logging.info("Starting webhook mode")
+        await app.bot.set_webhook(f"{RENDER_URL}/webhook")
+        
+        runner = web.AppRunner(await web_app())
         await runner.setup()
-        site = web.TCPSite(runner, '0.0.0.0', PORT)
-
+        site = web.TCPSite(runner, "0.0.0.0", PORT)
         await site.start()
-
-        # Установка webhook для Telegram
-        await application.bot.set_webhook(url=f"{RENDER_URL}/webhook/{TELEGRAM_TOKEN}")
+        
+        while True:
+            await asyncio.sleep(3600)
     else:
-        logging.info("Запуск в режиме polling")
-        await application.run_polling()
+        logging.info("Starting polling mode")
+        await app.run_polling()
 
 if __name__ == "__main__":
     try:
-        logging.info("Бот запущен...")
         asyncio.run(main())
-    except Exception as e:
-        logging.error(f"Критическая ошибка: {e}")
-        sys.exit(1)
+    except (KeyboardInterrupt, SystemExit):
+        logging.info("Bot stopped")
