@@ -63,7 +63,7 @@ T — Tone:
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_first_name = update.effective_user.first_name
     await update.message.reply_text(
-        f"Здравствуйте, {user_first_name}! Я бот агентства "QazaqBots". Чем могу помочь?"
+        f"Здравствуйте, {user_first_name}! Я бот агентства QazaqBots. Чем могу помочь?"
     )
 
 # Обработчик текстовых сообщений
