@@ -10,7 +10,8 @@ from telegram.ext import (
     MessageHandler,
     ConversationHandler,
     filters,
-    ContextTypes
+    ContextTypes,
+    CallbackContext
 )
 from aiohttp import web
 import openai
@@ -171,32 +172,32 @@ def setup_handlers(app: Application):
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
     app.add_error_handler(error_handler)
 
-async def web_app():
+async def web_app(application: Application):
     app = web.Application()
     app.router.add_get("/", lambda r: web.Response(text="Bot is running"))
     
-    # Добавляем обработчик вебхука
     async def handle_webhook(request):
         data = await request.json()
-        update = Update.de_json(data, bot)
-        await app.update_queue.put(update)
+        # Используем application.bot вместо глобальной переменной
+        update = Update.de_json(data, application.bot)
+        await application.update_queue.put(update)
         return web.Response()
     
-    # Регистрируем маршрут с токеном в URL
     app.router.add_post(f"/webhook/{TELEGRAM_TOKEN}", handle_webhook)
-    
     return app
 
 async def main():
-    app = Application.builder().token(TELEGRAM_TOKEN).build()
-    setup_handlers(app)
+    # Создаем экземпляр Application
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
+    setup_handlers(application)
 
     if RENDER_URL.strip():
         logging.info("Starting webhook mode")
         webhook_url = f"{RENDER_URL}/webhook/{TELEGRAM_TOKEN}"
-        await app.bot.set_webhook(webhook_url)
+        await application.bot.set_webhook(webhook_url)
         
-        runner = web.AppRunner(await web_app())
+        # Передаем application в web_app
+        runner = web.AppRunner(await web_app(application))
         await runner.setup()
         site = web.TCPSite(runner, "0.0.0.0", PORT)
         await site.start()
@@ -206,7 +207,7 @@ async def main():
             await asyncio.sleep(3600)
     else:
         logging.info("Starting polling mode")
-        await app.run_polling()
+        await application.run_polling()
 
 if __name__ == "__main__":
     try:
