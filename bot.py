@@ -174,6 +174,17 @@ def setup_handlers(app: Application):
 async def web_app():
     app = web.Application()
     app.router.add_get("/", lambda r: web.Response(text="Bot is running"))
+    
+    # Добавляем обработчик вебхука
+    async def handle_webhook(request):
+        data = await request.json()
+        update = Update.de_json(data, bot)
+        await app.update_queue.put(update)
+        return web.Response()
+    
+    # Регистрируем маршрут с токеном в URL
+    app.router.add_post(f"/webhook/{TELEGRAM_TOKEN}", handle_webhook)
+    
     return app
 
 async def main():
@@ -182,13 +193,15 @@ async def main():
 
     if RENDER_URL.strip():
         logging.info("Starting webhook mode")
-        await app.bot.set_webhook(f"{RENDER_URL}/webhook")
+        webhook_url = f"{RENDER_URL}/webhook/{TELEGRAM_TOKEN}"
+        await app.bot.set_webhook(webhook_url)
         
         runner = web.AppRunner(await web_app())
         await runner.setup()
         site = web.TCPSite(runner, "0.0.0.0", PORT)
         await site.start()
         
+        # Бесконечный цикл для поддержания работы
         while True:
             await asyncio.sleep(3600)
     else:
