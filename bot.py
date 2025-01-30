@@ -114,20 +114,6 @@ def main():
     
     set_webhook()
 
-    from flask import Flask, request
-
-app = Flask(__name__)
-
-@app.route('/webhook/<token>', methods=['POST'])
-def webhook(token):
-    if token == TELEGRAM_TOKEN:
-        json_data = request.get_json()
-        update = Update.de_json(json_data, application.bot)
-        application.create_task(application.process_update(update))
-        return "OK", 200
-    else:
-        return "Unauthorized", 403
-
 application.run_webhook(
     listen="0.0.0.0",
     port=PORT,
