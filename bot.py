@@ -108,7 +108,7 @@ def set_webhook():
         logging.error(f"Ошибка при установке Webhook: {response.json()}")
 
 # Основная функция запуска бота
-def main():
+async def main():
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
@@ -118,12 +118,11 @@ def main():
     
     set_webhook()
 
-    application.run_webhook(
+    await application.run_webhook(
     listen="0.0.0.0",
     port=PORT,
     webhook_url=f"{RENDER_URL}/webhook/{TELEGRAM_TOKEN}"
 )
 
 if __name__ == "__main__":
-    logging.info("Бот запущен...")
-    main()
+    asyncio.run(main())
