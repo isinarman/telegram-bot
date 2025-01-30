@@ -120,21 +120,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         # Генерируем ответ с помощью OpenAI
+        logging.info("Sending request to OpenAI API...")
         response = await openai.ChatCompletion.acreate(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": PROMPT},
                 {"role": "user", "content": user_message}
             ],
-            temperature=0.7,  # Параметр для управления "креативностью" ответа
-            max_tokens=500    # Ограничение длины ответа
+            temperature=0.7,
+            max_tokens=500
         )
 
         # Извлекаем ответ от GPT
         reply = response.choices[0].message.content
-
-        # Логируем ответ бота
-        logging.info(f"Generated reply for {user.full_name}: {reply}")
+        logging.info(f"Generated reply: {reply}")
 
         # Пересылаем ответ админу
         await context.bot.send_message(
@@ -143,7 +142,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         # Отправляем ответ пользователю
+        logging.info("Sending reply to user...")
         await update.message.reply_text(reply)
+        logging.info("Reply sent successfully.")
 
     except openai.error.OpenAIError as e:
         # Обработка ошибок OpenAI
