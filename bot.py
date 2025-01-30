@@ -225,4 +225,7 @@ async def main():
         await application.run_polling()
 
 if __name__ == "__main__":
-    application.run_polling()
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logging.info("Bot stopped")
