@@ -72,10 +72,8 @@ ASK_NICHE, ASK_NAME, ASK_PHONE = range(3)
 ADMIN_CHAT_ID = 352033952
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    await update.message.reply_text(
-        f"Здравствуйте, {user.first_name}! Я IZI от «QazaqBots». Чем могу помочь?"
-    )
+    logging.info(f"Received /start from {update.effective_user.id}")
+    await update.message.reply_text("Привет! Я IZI, чем могу вам помочь?")
     return ASK_NICHE
 
 async def ask_niche(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -176,17 +174,19 @@ async def web_app(application: Application):
     app = web.Application()
     app.router.add_get("/", lambda r: web.Response(text="Bot is running"))
     
-    async def handle_webhook(request):
+async def handle_webhook(request):
     try:
         logging.info("Received webhook request")
         data = await request.json()
         logging.info(f"Webhook data: {data}")
+        
         update = Update.de_json(data, application.bot)
         await application.update_queue.put(update)
+        
         return web.Response()
     except Exception as e:
         logging.error(f"Error in handle_webhook: {e}", exc_info=True)
-        return web.Response(status=500)
+        return web.Response(status=500, text="Internal Server Error")
     
     app.router.add_post(f"/webhook/{TELEGRAM_TOKEN}", handle_webhook)
     return app
