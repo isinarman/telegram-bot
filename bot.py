@@ -71,14 +71,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     logging.info(f"Получено сообщение: {user_message}")
     try:
-        loop = asyncio.get_running_loop()
-        response = await loop.run_in_executor(None, lambda: openai.ChatCompletion.create(
+        response = await openai.ChatCompletion.acreate(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": PROMPT},
                 {"role": "user", "content": user_message}
             ]
-        ))
+        )
         reply = response['choices'][0]['message']['content']
         await update.message.reply_text(reply)
     except Exception as e:
