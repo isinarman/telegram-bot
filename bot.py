@@ -96,15 +96,24 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Функция установки Webhook
 async def set_webhook(application: Application):
     bot = Bot(TELEGRAM_TOKEN)
+    
+    if not RENDER_URL.startswith("https://"):
+        logging.error(f"Ошибка: некорректный RENDER_URL ({RENDER_URL})")
+        return
+    
     webhook_url = f"{RENDER_URL}/webhook/{TELEGRAM_TOKEN}"
-    try:
-        success = await bot.set_webhook(webhook_url)
-        if success:
-            logging.info("Webhook установлен успешно!")
-        else:
-            logging.error("Не удалось установить Webhook.")
-    except Exception as e:
-        logging.error(f"Ошибка при установке Webhook: {e}")
+    
+    for attempt in range(5):  # 5 попыток с задержкой
+        try:
+            success = await bot.set_webhook(webhook_url)
+            if success:
+                logging.info(f"Webhook установлен успешно: {webhook_url}")
+                return
+            else:
+                logging.error("Не удалось установить Webhook.")
+        except Exception as e:
+            logging.error(f"Ошибка при установке Webhook (попытка {attempt + 1}): {e}")
+            await asyncio.sleep(2)  # Ждём 2 секунды перед новой попыткой
 
 # Основная функция запуска бота
 async def main():
