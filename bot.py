@@ -8,7 +8,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # Настройка логирования
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -87,11 +87,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Обработчик ошибок
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logging.error(f"Ошибка: {context.error}")
+    if update:
+        logging.error(f"Update: {update}")
     if update and update.message:
         await update.message.reply_text("Произошла ошибка. Попробуйте позже.")
 
 # Функция установки Webhook
-async def set_webhook(application):
+def set_webhook():
     webhook_url = f"{RENDER_URL}/webhook/{TELEGRAM_TOKEN}"
     response = requests.post(
         f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook",
@@ -106,24 +108,19 @@ async def set_webhook(application):
 async def main():
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     
-    # Добавление обработчиков
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_error_handler(error_handler)
+    
+    set_webhook()
 
-    # Установка Webhook
-    await set_webhook(application)
-
-    # Запуск Webhook-сервера
+    logging.info("Запуск веб-сервера...")
     await application.run_webhook(
         listen="0.0.0.0",
         port=PORT,
         webhook_url=f"{RENDER_URL}/webhook/{TELEGRAM_TOKEN}"
     )
 
-# Запуск бота
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except RuntimeError as e:
-        logging.error(f"Ошибка запуска: {e}")
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
