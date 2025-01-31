@@ -109,7 +109,7 @@ async def set_webhook(application: Application):
                 logging.error("Не удалось установить Webhook.")
         except Exception as e:
             logging.error(f"Ошибка при установке Webhook (попытка {attempt + 1}): {e}")
-            await asyncio.sleep(2)  # Ждём 2 секунды перед новой попыткой
+            await asyncio.sleep(5)  # Увеличена задержка до 5 секунд
 
 # Основная функция запуска бота
 async def main():
