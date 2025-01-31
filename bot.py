@@ -2,16 +2,12 @@ import os
 import asyncio
 import logging
 import openai
-import nest_asyncio
 from dotenv import load_dotenv
 from telegram import Update, Bot
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-
-# Разрешаем повторное использование event loop (важно для Render)
-nest_asyncio.apply()
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -101,7 +97,6 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Функция установки Webhook
 async def set_webhook(application: Application):
     bot = Bot(TELEGRAM_TOKEN)
-    
     webhook_url = f"{RENDER_URL}/webhook/{TELEGRAM_TOKEN}"
     
     for attempt in range(5):  # 5 попыток с задержкой
