@@ -26,6 +26,9 @@ PORT = int(os.environ.get("PORT", 8443))
 if not TELEGRAM_TOKEN or not OPENAI_API_KEY:
     raise ValueError("Необходимо указать TELEGRAM_TOKEN и OPENAI_API_KEY в .env файле.")
 
+if not RENDER_URL.startswith("https://"):
+    raise ValueError("RENDER_URL должен начинаться с https://")
+
 # Настройка OpenAI
 openai.api_key = OPENAI_API_KEY
 
@@ -64,28 +67,30 @@ T — Tone:
 
 # Обработчик команды /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_first_name = update.effective_user.first_name
-    await update.message.reply_text(
-        f"Здравствуйте, {user_first_name}! Я бот агентства QazaqBots. Чем могу помочь?"
-    )
+    if update.message:
+        user_first_name = update.effective_user.first_name
+        await update.message.reply_text(
+            f"Здравствуйте, {user_first_name}! Я бот агентства QazaqBots. Чем могу помочь?"
+        )
 
 # Обработчик текстовых сообщений
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_message = update.message.text
-    logging.info(f"Получено сообщение: {user_message}")
-    try:
-        response = await openai.ChatCompletion.acreate(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": PROMPT},
-                {"role": "user", "content": user_message}
-            ]
-        )
-        reply = response['choices'][0]['message']['content']
-        await update.message.reply_text(reply)
-    except Exception as e:
-        logging.error(f"Ошибка OpenAI API: {e}")
-        await update.message.reply_text("Произошла ошибка. Попробуйте позже.")
+    if update.message:
+        user_message = update.message.text
+        logging.info(f"Получено сообщение: {user_message}")
+        try:
+            response = await openai.ChatCompletion.acreate(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": PROMPT},
+                    {"role": "user", "content": user_message}
+                ]
+            )
+            reply = response['choices'][0]['message']['content']
+            await update.message.reply_text(reply)
+        except Exception as e:
+            logging.error(f"Ошибка OpenAI API: {e}")
+            await update.message.reply_text("Произошла ошибка. Попробуйте позже.")
 
 # Обработчик ошибок
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -96,10 +101,6 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Функция установки Webhook
 async def set_webhook(application: Application):
     bot = Bot(TELEGRAM_TOKEN)
-    
-    if not RENDER_URL.startswith("https://"):
-        logging.error(f"Ошибка: некорректный RENDER_URL ({RENDER_URL})")
-        return
     
     webhook_url = f"{RENDER_URL}/webhook/{TELEGRAM_TOKEN}"
     
@@ -135,9 +136,6 @@ async def main():
         url_path=f"/webhook/{TELEGRAM_TOKEN}"
     )
 
-# Запуск бота в работающем event loop
+# Запуск бота
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.create_task(main())
-    loop.run_forever()
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8443)))
+    asyncio.run(main())
