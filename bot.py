@@ -20,7 +20,7 @@ load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 RENDER_URL = os.getenv("RENDER_URL", "https://telegram-bot-ag71.onrender.com")
-PORT = int(os.getenv("PORT", 8443))
+PORT = int(os.environ.get("PORT", 8443))
 
 # Проверка наличия ключей
 if not TELEGRAM_TOKEN or not OPENAI_API_KEY:
@@ -140,3 +140,4 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.create_task(main())
     loop.run_forever()
+    app.run(host="0.0.0.0", port=PORT)
