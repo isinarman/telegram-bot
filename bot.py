@@ -77,7 +77,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Произошла ошибка. Попробуйте позже.")
 
 # Функция установки Webhook
-async def set_webhook():
+async def set_webhook(application: Application):
     bot = Bot(TELEGRAM_TOKEN)
     webhook_url = f"{RENDER_URL}/webhook/{TELEGRAM_TOKEN}"
     try:
@@ -88,23 +88,18 @@ async def set_webhook():
             logging.error("Не удалось установить Webhook.")
     except Exception as e:
         logging.error(f"Ошибка при установке Webhook: {e}")
-        if "retry after" in str(e):
-            retry_time = int(str(e).split("retry after ")[1].split("'")[0])
-            logging.info(f"Повторная попытка через {retry_time} секунд...")
-            await asyncio.sleep(retry_time)
-            await set_webhook()
 
 # Основная функция запуска бота
 async def main():
     application = Application.builder().token(TELEGRAM_TOKEN).build()
-    
+
     # Добавление обработчиков
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_error_handler(error_handler)
 
     # Установка Webhook
-    await set_webhook()
+    await set_webhook(application)
 
     # Запуск Webhook-сервера
     logging.info("Запуск веб-сервера...")
@@ -114,12 +109,6 @@ async def main():
         url_path=f"/webhook/{TELEGRAM_TOKEN}"
     )
 
-# Запуск бота
+# Запуск бота (без `run_until_complete`)
 if __name__ == "__main__":
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    loop.run_until_complete(main())
+    asyncio.run(main())
