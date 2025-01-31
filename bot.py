@@ -2,9 +2,8 @@ import os
 import asyncio
 import logging
 import openai
-import requests
 from dotenv import load_dotenv
-from telegram import Update
+from telegram import Update, Bot
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # Настройка логирования
@@ -17,7 +16,7 @@ load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 RENDER_URL = os.getenv("RENDER_URL", "https://telegram-bot-ag71.onrender.com")
-PORT = int(os.getenv("PORT", 10000))
+PORT = int(os.getenv("PORT", 8443))
 
 # Проверка наличия ключей
 if not TELEGRAM_TOKEN or not OPENAI_API_KEY:
@@ -29,34 +28,21 @@ openai.api_key = OPENAI_API_KEY
 # Промпт для GPT
 PROMPT = """
 R — Role:
-Вас зовут IZI, вы женского пола. Вы выступаете как эксперт-консультант от Агентства автоматизации «QazaqBots», одного из лучших агентств в Казахстане. 
-Вы представляете команду, собравшую ведущих специалистов по разработке и интеграции ИИ чат-ботов. Агентство помогает бизнесу налаживать поток целевых заявок и эффективно обрабатывать их 24/7 с помощью интеллектуальных решений. Ваш опыт охватывает полный цикл автоматизации, от идеи до внедрения, и вы помогаете клиентам превращать их бизнес в стабильный источник прибыли.
+Вас зовут IZI, вы женского пола. Вы выступаете как эксперт-консультант от Агентства автоматизации «QazaqBots». 
+Агентство помогает бизнесу налаживать поток целевых заявок и обрабатывать их 24/7. Ваш опыт охватывает полный цикл автоматизации.
 
 A — Action:
 Ваша задача:
-1. Отвечать на вопросы о разработке, интеграции и возможностях ИИ чат-ботов, подчеркивая преимущества работы с «QazaqBots».
-2. Рассказывать о сильных сторонах агентства, таких как:
-    • Создание потока целевых заявок.
-    • 24/7 обработка клиентов в мессенджерах.
-    • Полный цикл автоматизации под ключ.
-3. Упоминать слоган агентства: «Умные боты для умных решений».
-4. Приглашать клиента на бесплатную консультацию с акцентом на помощь в индивидуальных задачах.
-5. Запрашивать контактные данные (номер телефона), имя и направление бизнеса для передачи их менеджеру.
+1. Отвечать на вопросы о разработке и интеграции чат-ботов.
+2. Подчеркивать преимущества работы с «QazaqBots».
+3. Приглашать клиента на бесплатную консультацию.
 
 F — Format:
-Формат общения:
-• Краткий, профессиональный ответ на вопросы клиента с упоминанием агентства автоматизации «QazaqBots» и его преимуществ.
-• Выстраивание доверия через примеры успешной работы и персонализированный подход.
-• Завершение диалога приглашением на бесплатную консультацию с предложением оставить номер телефона.
-
-Пример ответа:
-«Спасибо за ваш вопрос! Агентство автоматизации  «QazaqBots» специализируется на разработке умных чат-ботов, которые помогают бизнесу в Казахстане превращать трафик в стабильный поток заявок и обрабатывать их в мессенджерах 24/7. Мы собрали лучших специалистов и готовы помочь вам автоматизировать бизнес от А до Я. Напишите ваш номер телефона, чтобы мы смогли обсудить ваши задачи и предложить оптимальное решение. Наш слоган: «Умные боты для умных решений».»
+• Краткий, профессиональный ответ.
+• Завершение диалога приглашением на бесплатную консультацию.
 
 T — Tone:
-Тон общения:
 • Дружелюбный, уверенный, экспертный.
-• С акцентом на заботу о клиенте и его бизнесе.
-• Привлекающий внимание профессионализмом и опытом. 
 """
 
 # Обработчик команды /start
@@ -87,44 +73,53 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Обработчик ошибок
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logging.error(f"Ошибка: {context.error}")
-    if update:
-        logging.error(f"Update: {update}")
     if update and update.message:
         await update.message.reply_text("Произошла ошибка. Попробуйте позже.")
 
 # Функция установки Webhook
-def set_webhook():
+async def set_webhook():
+    bot = Bot(TELEGRAM_TOKEN)
     webhook_url = f"{RENDER_URL}/webhook/{TELEGRAM_TOKEN}"
-    response = requests.post(
-        f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook",
-        data={"url": webhook_url}
-    )
-    if response.status_code == 200:
-        logging.info("Webhook установлен успешно!")
-    else:
-        logging.error(f"Ошибка при установке Webhook: {response.json()}")
+    try:
+        success = await bot.set_webhook(webhook_url)
+        if success:
+            logging.info("Webhook установлен успешно!")
+        else:
+            logging.error("Не удалось установить Webhook.")
+    except Exception as e:
+        logging.error(f"Ошибка при установке Webhook: {e}")
+        if "retry after" in str(e):
+            retry_time = int(str(e).split("retry after ")[1].split("'")[0])
+            logging.info(f"Повторная попытка через {retry_time} секунд...")
+            await asyncio.sleep(retry_time)
+            await set_webhook()
 
 # Основная функция запуска бота
 async def main():
     application = Application.builder().token(TELEGRAM_TOKEN).build()
     
+    # Добавление обработчиков
     application.add_handler(CommandHandler("start", start))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     application.add_error_handler(error_handler)
-    
-    set_webhook()
 
+    # Установка Webhook
+    await set_webhook()
+
+    # Запуск Webhook-сервера
     logging.info("Запуск веб-сервера...")
     await application.run_webhook(
         listen="0.0.0.0",
         port=PORT,
-        webhook_url=f"{RENDER_URL}/webhook/{TELEGRAM_TOKEN}"
+        url_path=f"/webhook/{TELEGRAM_TOKEN}"
     )
 
+# Запуск бота
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        loop = asyncio.get_running_loop()
     except RuntimeError:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(main())
+
+    loop.run_until_complete(main())
