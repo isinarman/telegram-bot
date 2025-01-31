@@ -133,4 +133,13 @@ async def main():
 
 # Запуск бота
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Используем nest_asyncio, если event loop уже запущен
+    try:
+        import nest_asyncio
+        nest_asyncio.apply()
+    except ImportError:
+        pass
+
+    # Запуск main() в существующем event loop
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
