@@ -140,4 +140,4 @@ if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.create_task(main())
     loop.run_forever()
-    app.run(host="0.0.0.0", port=PORT)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8443)))
